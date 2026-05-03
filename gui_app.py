@@ -11,8 +11,8 @@ Design system: Sleek (modern minimalist, 8-pt baseline grid, Inter font,
                        60-30-10 color rule, WCAG 2.2 AA contrast)
 """
 
+import os
 import customtkinter as ctk
-import tkinter as tk
 from tkinter import messagebox
 from typing import Optional
 
@@ -51,6 +51,62 @@ FONT = "Inter"   # customtkinter passes this to Tkinter; Tkinter substitutes a
 
 # 8-pt spacing scale
 P1, P2, P3, P4, P5, P6, P7 = 4, 8, 12, 16, 24, 32, 48
+
+# ─── Vitals reference ranges ─────────────────────────────────────────────────
+# Each entry: list of (lo_inclusive, hi_exclusive, status_label, color)
+# The last range's upper bound is treated as inclusive (handles boundary values).
+VITAL_STATUS: dict = {
+    "Temperature (°C)": [
+        (35.0, 36.1, "Low",      WARNING),
+        (36.1, 37.5, "Normal",   SUCCESS),
+        (37.5, 38.0, "Elevated", WARNING),
+        (38.0, 42.0, "Fever",    DANGER),
+    ],
+    "Heart Rate (bpm)": [
+        (30,  60,  "Low",      WARNING),
+        (60,  100, "Normal",   SUCCESS),
+        (100, 120, "Elevated", WARNING),
+        (120, 250, "High",     DANGER),
+    ],
+    "Systolic BP (mmHg)": [
+        (60,  90,  "Low",      WARNING),
+        (90,  140, "Normal",   SUCCESS),
+        (140, 180, "Elevated", WARNING),
+        (180, 260, "High",     DANGER),
+    ],
+    "Diastolic BP (mmHg)": [
+        (40, 60,  "Low",      WARNING),
+        (60, 90,  "Normal",   SUCCESS),
+        (90, 100, "Elevated", WARNING),
+        (100, 160, "High",    DANGER),
+    ],
+    "SpO₂ (%)": [
+        (50, 90,  "Critical", DANGER),
+        (90, 94,  "Low",      WARNING),
+        (94, 100, "Normal",   SUCCESS),
+    ],
+    "Resp. Rate (br/min)": [
+        (5,  12, "Low",      WARNING),
+        (12, 20, "Normal",   SUCCESS),
+        (20, 30, "Elevated", WARNING),
+        (30, 60, "High",     DANGER),
+    ],
+}
+
+
+def _vital_status(label: str, value: float) -> tuple:
+    """
+    Return (status_text, color) for a vital reading.
+
+    Iterates the VITAL_STATUS ranges for *label* and returns the matching
+    bucket.  The final range is treated as inclusive on its upper bound so
+    that boundary values (e.g. SpO2 = 100) are always matched.
+    """
+    ranges = VITAL_STATUS.get(label, [])
+    for i, (lo, hi, text, color) in enumerate(ranges):
+        if lo <= value < hi or (i == len(ranges) - 1 and value >= lo):
+            return text, color
+    return "", TEXT_MUTED
 
 
 # ─── Font helper ──────────────────────────────────────────────────────────────
@@ -173,14 +229,6 @@ def _section_header(card: ctk.CTkFrame, title: str,
     return body
 
 
-def _field_row(parent, label: str, widget) -> ctk.CTkFrame:
-    """Wrap a label + widget into a vertical field group."""
-    f = ctk.CTkFrame(parent, fg_color="transparent")
-    _caption(f, label).pack(anchor="w", pady=(0, P1))
-    widget.pack(fill="x")
-    return f
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # FORM SECTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -300,14 +348,27 @@ class VitalsSection(ctk.CTkFrame):
             ("SpO₂ (%)", "98",       "50–100",         1, 1),
             ("Resp. Rate (br/min)", "16", "5–60",      1, 2),
         ]
-        self._entries: dict[str, ctk.CTkEntry] = {}
+        self._entries:    dict[str, ctk.CTkEntry] = {}
+        self._indicators: dict[str, ctk.CTkLabel] = {}
+
         for label, default, placeholder, row, col in specs:
             f = ctk.CTkFrame(body, fg_color="transparent")
             f.grid(row=row, column=col, sticky="ew",
                    padx=(0, P4) if col < 2 else (0, 0), pady=(0, P4))
-            _caption(f, label).pack(anchor="w", pady=(0, P1))
+
+            # Header row: caption on the left, live status badge on the right
+            cap_row = ctk.CTkFrame(f, fg_color="transparent")
+            cap_row.pack(fill="x", pady=(0, P1))
+            _caption(cap_row, label).pack(side="left")
+            ind = ctk.CTkLabel(cap_row, text="", font=_f(11, "bold"),
+                               text_color=SUCCESS)
+            ind.pack(side="right")
+            self._indicators[label] = ind
+
             e = _entry(f, placeholder=placeholder, default=default)
             e.pack(fill="x")
+            e.bind("<KeyRelease>", lambda evt, l=label: self._update_indicator(l))
+            e.bind("<FocusOut>",   lambda evt, l=label: self._update_indicator(l))
             self._entries[label] = e
 
         cons_f = ctk.CTkFrame(body, fg_color="transparent")
@@ -316,6 +377,30 @@ class VitalsSection(ctk.CTkFrame):
         self._consciousness = ctk.StringVar(value="alert")
         _segmented(cons_f, ["alert", "confused", "unresponsive"],
                    self._consciousness).pack(fill="x")
+
+        # Seed indicators from default values after the widget tree is ready
+        self.after(50, self._update_all_indicators)
+
+    # ── Status indicator helpers ───────────────────────────────────────────────
+
+    def _update_indicator(self, label: str) -> None:
+        """Refresh the status badge for one vital field."""
+        ind = self._indicators.get(label)
+        if ind is None:
+            return
+        raw = self._entries[label].get().strip()
+        try:
+            val = float(raw)
+        except ValueError:
+            ind.configure(text="", text_color=TEXT_MUTED)
+            return
+        text, color = _vital_status(label, val)
+        ind.configure(text=text, text_color=color)
+
+    def _update_all_indicators(self) -> None:
+        """Refresh status badges for all vital fields (used on initialisation)."""
+        for label in self._entries:
+            self._update_indicator(label)
 
     def _parse(self, label, default, lo, hi, as_int=False):
         raw = self._entries[label].get().strip()
@@ -647,6 +732,13 @@ class _PrimaryDiagnosisCard(ctk.CTkFrame):
         _heading(body, primary.display_name, size=22).pack(anchor="w",
                                                             pady=(0, P2))
 
+        # CF confidence progress bar — gives an instant visual read of certainty
+        bar_color = URGENCY_COLORS.get(primary.urgency, PRIMARY)
+        cf_bar = ctk.CTkProgressBar(body, height=6, corner_radius=3,
+                                    progress_color=bar_color, fg_color=BORDER)
+        cf_bar.set(primary.cf)
+        cf_bar.pack(fill="x", pady=(0, P3))
+
         meta_row = ctk.CTkFrame(body, fg_color="transparent")
         meta_row.pack(fill="x")
 
@@ -936,8 +1028,12 @@ class SavedPatientsView(ctk.CTkFrame):
             _label(self._list_frame, "No saved assessments.",
                    size=13, color=TEXT_MUTED).pack(padx=P4, pady=P4)
         for name in patients:
-            btn = ctk.CTkButton(
-                self._list_frame,
+            row = ctk.CTkFrame(self._list_frame, fg_color="transparent")
+            row.pack(fill="x", pady=P1)
+            row.columnconfigure(0, weight=1)
+
+            ctk.CTkButton(
+                row,
                 text=name.replace("_", " ").title(),
                 command=lambda n=name: self._load_patient(n),
                 fg_color="transparent",
@@ -947,8 +1043,20 @@ class SavedPatientsView(ctk.CTkFrame):
                 font=_f(13),
                 height=36,
                 corner_radius=6,
-            )
-            btn.pack(fill="x", pady=P1)
+            ).grid(row=0, column=0, sticky="ew")
+
+            # Delete button — shown inline, only acts after confirmation
+            ctk.CTkButton(
+                row,
+                text="🗑",
+                command=lambda n=name: self._delete_patient(n),
+                fg_color="transparent",
+                hover_color="#FEE2E2",
+                text_color=DANGER,
+                width=34,
+                height=34,
+                corner_radius=6,
+            ).grid(row=0, column=1, padx=(P1, 0))
 
     def _show_placeholder(self) -> None:
         self._detail_text.configure(state="normal")
@@ -1013,6 +1121,27 @@ class SavedPatientsView(ctk.CTkFrame):
         self._detail_text.delete("1.0", "end")
         self._detail_text.insert("1.0", text)
         self._detail_text.configure(state="disabled")
+
+    def _delete_patient(self, name: str) -> None:
+        """Permanently delete a saved assessment file after confirmation."""
+        display = name.replace("_", " ").title()
+        if not messagebox.askyesno(
+            "Delete Assessment",
+            f"Permanently delete the assessment for '{display}'?\n\nThis cannot be undone.",
+        ):
+            return
+        safe = DataPersistence._sanitize_filename(name)
+        path = f"{safe}.json"
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            messagebox.showerror("Not Found", f"File not found:\n{path}")
+            return
+        except Exception as exc:
+            messagebox.showerror("Delete Failed", str(exc))
+            return
+        self._show_placeholder()
+        self._load_list()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
