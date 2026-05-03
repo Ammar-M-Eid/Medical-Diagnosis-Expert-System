@@ -99,12 +99,15 @@ def _vital_status(label: str, value: float) -> tuple:
     Return (status_text, color) for a vital reading.
 
     Iterates the VITAL_STATUS ranges for *label* and returns the matching
-    bucket.  The final range is treated as inclusive on its upper bound so
-    that boundary values (e.g. SpO2 = 100) are always matched.
+    bucket.  Inner ranges use a half-open interval [lo, hi) so that shared
+    boundary values (e.g. 38.0°C) fall into the higher bucket.  The final
+    range uses a closed interval [lo, hi] so that the maximum legal value
+    (e.g. SpO2 = 100) is always matched.
     """
     ranges = VITAL_STATUS.get(label, [])
     for i, (lo, hi, text, color) in enumerate(ranges):
-        if lo <= value < hi or (i == len(ranges) - 1 and value >= lo):
+        is_last = (i == len(ranges) - 1)
+        if lo <= value <= hi if is_last else lo <= value < hi:
             return text, color
     return "", TEXT_MUTED
 
@@ -873,7 +876,7 @@ class _ExplanationCard(ctk.CTkFrame):
         # Trace box (hidden initially); uses a monospace font for aligned output
         self._trace_box = ctk.CTkTextbox(
             self, height=200, fg_color=BG, text_color=TEXT_MUTED,
-            font=ctk.CTkFont(family="JetBrains Mono", size=12),  # Courier New if unavailable
+            font=ctk.CTkFont(family="JetBrains Mono", size=12),
             corner_radius=8, border_width=0, wrap="none",
         )
         ctk.CTkFrame(self, fg_color="transparent").pack(pady=(0, P2))
@@ -1130,12 +1133,10 @@ class SavedPatientsView(ctk.CTkFrame):
             f"Permanently delete the assessment for '{display}'?\n\nThis cannot be undone.",
         ):
             return
-        safe = DataPersistence._sanitize_filename(name)
-        path = f"{safe}.json"
         try:
-            os.remove(path)
-        except FileNotFoundError:
-            messagebox.showerror("Not Found", f"File not found:\n{path}")
+            DataPersistence.delete_assessment(name)
+        except FileNotFoundError as exc:
+            messagebox.showerror("Not Found", str(exc))
             return
         except Exception as exc:
             messagebox.showerror("Delete Failed", str(exc))

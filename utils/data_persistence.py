@@ -130,3 +130,25 @@ class DataPersistence:
                 if fname.endswith(".json"):
                     patients.append(fname[:-5])  # strip .json
         return sorted(patients)
+
+    @staticmethod
+    def delete_assessment(patient_name: str) -> None:
+        """
+        Delete a saved patient assessment by name.
+
+        Parameters
+        ----------
+        patient_name : str — patient name used when the file was saved
+
+        Raises
+        ------
+        FileNotFoundError — if no matching assessment file exists
+        OSError           — if the file cannot be removed
+        """
+        safe_name = DataPersistence._sanitize_filename(patient_name)
+        filename = f"{safe_name}.json"
+        if not os.path.exists(filename):
+            raise FileNotFoundError(
+                f"No assessment found for patient '{patient_name}'"
+            )
+        os.remove(filename)
