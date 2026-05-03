@@ -199,10 +199,11 @@ def _btn(master, text: str, cmd=None, variant="primary", **kw) -> ctk.CTkButton:
     }
     fg, hover = colors.get(variant, colors["primary"])
     txt = TEXT if variant == "ghost" else "#FFFFFF"
+    height = kw.pop("height", 40)
     return ctk.CTkButton(
         master, text=text, command=cmd,
         fg_color=fg, hover_color=hover, text_color=txt,
-        font=_f(14, "bold"), corner_radius=8, height=40,
+        font=_f(14, "bold"), corner_radius=8, height=height,
         **kw,
     )
 
@@ -831,7 +832,7 @@ class _ActionsCard(ctk.CTkFrame):
                 fg_color="#FEF2F2" if urgent else BG,
                 corner_radius=8,
                 border_width=1 if urgent else 0,
-                border_color="#FECACA" if urgent else "transparent",
+                border_color="#FECACA" if urgent else BG,
             )
             row.pack(fill="x", padx=P5, pady=(0, P2))
             icon = "🚨" if urgent else "✓"
@@ -854,18 +855,18 @@ class _ExplanationCard(ctk.CTkFrame):
 
         hdr = ctk.CTkFrame(self, fg_color="transparent")
         hdr.pack(fill="x", padx=P5, pady=(P5, P2))
-        _label(hdr, "REASONING EXPLANATION", size=11, weight="bold",
+        _label(hdr, "HOW THE SYSTEM DETERMINED THE ILLNESS", size=11, weight="bold",
                color=TEXT_MUTED).pack(side="left")
         self._trace_btn = _btn(
             hdr, "Show Full Trace ›", cmd=self._toggle_trace,
-            variant="ghost", height=30, width=150,
+            variant="ghost", height=30, width=165,
         )
         self._trace_btn.pack(side="right")
         _divider(self).pack(fill="x", padx=P5, pady=(0, P3))
 
         summary = self._explainer.summary(results)
         self._summary_box = ctk.CTkTextbox(
-            self, height=120, fg_color=BG, text_color=TEXT,
+            self, height=230, fg_color=BG, text_color=TEXT,
             font=_f(13), corner_radius=8, border_width=0,
             wrap="word",
         )
@@ -875,7 +876,7 @@ class _ExplanationCard(ctk.CTkFrame):
 
         # Trace box (hidden initially); uses a monospace font for aligned output
         self._trace_box = ctk.CTkTextbox(
-            self, height=200, fg_color=BG, text_color=TEXT_MUTED,
+            self, height=360, fg_color=BG, text_color=TEXT_MUTED,
             font=ctk.CTkFont(family="JetBrains Mono", size=12),
             corner_radius=8, border_width=0, wrap="none",
         )
@@ -1183,8 +1184,9 @@ class Sidebar(ctk.CTkFrame):
             justify="left",
         ).pack(anchor="w", pady=(P1, 0))
 
-        _divider(self).configure(fg_color="#2D4A7A").pack(
-            fill="x", padx=P4, pady=(0, P4))
+        divider = _divider(self)
+        divider.configure(fg_color="#2D4A7A")
+        divider.pack(fill="x", padx=P4, pady=(0, P4))
 
         # ── Nav items ─────────────────────────────────────────────────────
         nav_label = ctk.CTkLabel(
@@ -1214,8 +1216,9 @@ class Sidebar(ctk.CTkFrame):
         ctk.CTkFrame(self, fg_color="transparent").pack(fill="both", expand=True)
 
         # ── Footer disclaimer ─────────────────────────────────────────────
-        _divider(self).configure(fg_color="#2D4A7A").pack(
-            fill="x", padx=P4, pady=(0, P3))
+        divider = _divider(self)
+        divider.configure(fg_color="#2D4A7A")
+        divider.pack(fill="x", padx=P4, pady=(0, P3))
         ctk.CTkLabel(
             self,
             text="Decision-support tool only.\nConsult a licensed clinician.",
@@ -1316,7 +1319,8 @@ class GUIApp(ctk.CTk):
         self._current_view = "results"
 
     def _back_to_form(self) -> None:
-        self._sidebar.set_active("assessment")
+        self._show_assessment_form()
+        self._sidebar._active = "assessment"
 
     def _clear_content(self) -> None:
         for w in self._content.winfo_children():

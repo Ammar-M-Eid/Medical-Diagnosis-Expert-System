@@ -15,11 +15,20 @@ OOP Structure
 ─────────────────────────────────────────────────────────
 """
 
+import sys
+
 from core.inference_engine   import InferenceEngine
 from interface.console_style import ConsoleStyle
 from interface.intake_form   import IntakeForm
 from interface.result_renderer import ResultRenderer
 from utils.data_persistence  import DataPersistence
+
+
+def _configure_console_encoding() -> None:
+    """Avoid Windows console encoding crashes when printing the banner."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
 
 
 class App:
@@ -131,4 +140,5 @@ class App:
 # ── Entry point ────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    _configure_console_encoding()
     App().run()

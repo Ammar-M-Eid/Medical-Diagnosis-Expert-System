@@ -1,0 +1,44 @@
+Medical Diagnosis Expert System - How to Run
+============================================
+
+Project folder:
+A:\MyGitHub\KBS
+
+1. Open PowerShell.
+
+2. Go to the project folder:
+   cd A:\MyGitHub\KBS
+
+3. If the virtual environment already exists, activate it:
+   .\.venv\Scripts\activate
+
+4. Install the required packages:
+   pip install -r requirements.txt
+
+5. Run the graphical application:
+   python gui_app.py
+
+6. Run the console application instead:
+   python main.py
+
+7. Run the automated tests:
+   python -m pytest -q
+
+If the virtual environment is missing or broken:
+
+1. Recreate it:
+   python -m venv .venv
+
+2. Activate it:
+   .\.venv\Scripts\activate
+
+3. Install dependencies:
+   pip install -r requirements.txt
+
+4. Start the GUI:
+   python gui_app.py
+
+Notes:
+- The GUI window title is "Medical Diagnosis Expert System".
+- Use "Run Assessment" after entering patient details, vitals, symptoms, and pain details if needed.
+- In the results page, use "Show Full Trace" to see the detailed reasoning audit.
