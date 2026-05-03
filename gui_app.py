@@ -46,7 +46,8 @@ URGENCY_COLORS = {
     "NON_URGENT":  SUCCESS,
 }
 
-FONT = "Inter"   # falls back to system sans-serif
+FONT = "Inter"   # customtkinter passes this to Tkinter; Tkinter substitutes a
+                 # system font if Inter is unavailable (OS-dependent behaviour)
 
 # 8-pt spacing scale
 P1, P2, P3, P4, P5, P6, P7 = 4, 8, 12, 16, 24, 32, 48
@@ -565,10 +566,6 @@ class AssessmentView(ctk.CTkScrollableFrame):
 
     def _toggle_pain(self, show: bool) -> None:
         if show:
-            self._pain_section.pack(fill="x", padx=P5, pady=(0, P4),
-                                    before=self._symptoms)
-            # Re-pack below symptoms
-            self._pain_section.pack_forget()
             self._pain_section.pack(fill="x", padx=P5, pady=(0, P4))
         else:
             self._pain_section.pack_forget()
@@ -698,10 +695,10 @@ class _DifferentialsCard(ctk.CTkFrame):
         _divider(tbl).grid(row=1, column=0, columnspan=4, sticky="ew",
                            padx=P2, pady=(0, P2))
 
-        for i, d in enumerate(differentials, 2):
+        for i, d in enumerate(differentials, 1):
             bg = BG if i % 2 == 0 else SURFACE
             row_f = ctk.CTkFrame(tbl, fg_color=bg, corner_radius=4)
-            row_f.grid(row=i, column=0, columnspan=4, sticky="ew",
+            row_f.grid(row=i + 1, column=0, columnspan=4, sticky="ew",
                        padx=P1, pady=P1)
             row_f.columnconfigure(0, weight=3)
             row_f.columnconfigure(1, weight=1)
@@ -781,10 +778,10 @@ class _ExplanationCard(ctk.CTkFrame):
         self._summary_box.insert("1.0", summary)
         self._summary_box.configure(state="disabled")
 
-        # Trace box (hidden initially)
+        # Trace box (hidden initially); uses a monospace font for aligned output
         self._trace_box = ctk.CTkTextbox(
             self, height=200, fg_color=BG, text_color=TEXT_MUTED,
-            font=ctk.CTkFont(family="JetBrains Mono", size=12),
+            font=ctk.CTkFont(family="JetBrains Mono", size=12),  # Courier New if unavailable
             corner_radius=8, border_width=0, wrap="none",
         )
         ctk.CTkFrame(self, fg_color="transparent").pack(pady=(0, P2))
@@ -999,10 +996,10 @@ class SavedPatientsView(ctk.CTkFrame):
 
         if difs:
             lines += ["", "─" * 48, "DIFFERENTIALS"]
-            for i, d in enumerate(difs, 2):
+            for i, d in enumerate(difs, 1):
                 lines.append(
-                    f"  {i}. {d.get('diagnosis','').replace('_',' ')}"
-                    f"  (CF={d.get('cf','—')}, {d.get('urgency','—')})"
+                    f"  {i}. {d.get('diagnosis', '').replace('_', ' ')}"
+                    f"  (CF={d.get('cf', '—')}, {d.get('urgency', '—')})"
                 )
 
         conds = pd_.get("known_conditions", [])
